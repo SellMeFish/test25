@@ -1,5 +1,5 @@
--- EasyBond - Simplified Bond Collector (ohne GUI)
--- Basierend auf Bond Collector mit minimalem Code
+-- EasyBond - Ultra-Schneller Bond Collector (Turbo-Modus)
+-- Optimierte Version für maximale Farm-Geschwindigkeit
 
 -- Globale Variablen für Kontrolle
 _G.bondCollectorRunning = _G.bondCollectorRunning or false
@@ -7,6 +7,7 @@ _G.failedBonds = _G.failedBonds or {}
 _G.queuedRestart = _G.queuedRestart or false
 _G.isInRestart = _G.isInRestart or false
 _G.hasStartedBefore = _G.hasStartedBefore or false
+_G.turboMode = true -- Neue Flagge für Turbo-Modus
 
 -- Skript-Ausführungs-Check
 if _G.bondCollectorRunning then
@@ -61,40 +62,40 @@ local settings = {
     -- General Settings
     autoRestart = true,      -- Auto restart after round ends
     
-    -- Scan-Einstellungen
+    -- Scan-Einstellungen - AUSFÜHRLICH
     scanEnabled = true,      
-    scanSteps = 100,        
-    scanDelay = 0.3,         
+    scanSteps = 70,          -- Mehr Schritte für gründlicheren Scan
+    scanDelay = 0.08,        -- Optimale Verzögerung für Balance aus Geschwindigkeit und Gründlichkeit
     
-    -- Anti-Stuck Einstellungen
+    -- Anti-Stuck Einstellungen - OPTIMIERT
     jumpOnStuck = true,      
-    stuckTimeout = 2,        
-    maxBondTime = 30,        
+    stuckTimeout = 1,        -- Schnellere Stuck-Erkennung
+    maxBondTime = 15,        -- Kürzeres Timeout für Bonds
     skipStuckBonds = true,   
-    maxAttemptsPerBond = 3,  
-    globalStuckTimeout = 15, 
+    maxAttemptsPerBond = 2,  -- Weniger Versuche pro Bond
+    globalStuckTimeout = 10, -- Kürzeres globales Timeout
     
-    -- Teleport-Einstellungen
+    -- Teleport-Einstellungen - BESCHLEUNIGT
     teleportHeight = 2.5,    
-    teleportRetryDelay = 0.3,
-    targetProximity = 6,     
+    teleportRetryDelay = 0.1, -- Schnellere Wiederholungsversuche
+    targetProximity = 8,     -- Größerer Proximity-Radius für schnelleres Sammeln
     
-    -- Failed Bonds Settings
-    retryFailedBonds = true, -- Retry collecting failed bonds
-    useNoClipForRetry = true, -- Use no-clip when retrying failed bonds
-    maxFailedRetries = 2,    -- Maximum retries for failed bonds
-    failedBondRetryDelay = 0.5, -- Delay between failed bond retries
+    -- Failed Bonds Settings - OPTIMIERT
+    retryFailedBonds = true,
+    useNoClipForRetry = true,
+    maxFailedRetries = 1,    -- Nur ein Wiederholversuch für fehlgeschlagene Bonds
+    failedBondRetryDelay = 0.2, -- Schnellerer Retry
     
-    -- Bond-Aura-Einstellungen
+    -- Bond-Aura-Einstellungen - VERBESSERT
     enableBondAura = true,   
-    bondAuraRadius = 10,     
-    bondAuraInterval = 0.1,  
+    bondAuraRadius = 15,     -- Größerer Radius
+    bondAuraInterval = 0.05, -- Häufigere Checks
     
     -- NoClip-Einstellungen
     smartNoClip = true,      
 }
 
--- Sichere Remote-Aktivierung mit Fehlerbehandlung
+-- Sichere Remote-Aktivierung mit Fehlerbehandlung - OPTIMIERT
 local function safeActivateObject(item)
     if not item or not item.Parent then
         return false
@@ -119,7 +120,8 @@ local function safeActivateObject(item)
             return false
         end
         
-        task.wait(0.4)
+        -- Verkürzte Wartezeit für schnellere Verarbeitung
+        task.wait(0.2)
         
         -- Überprüfen, ob der Bond gesammelt wurde
         success = (not item or item.Parent ~= originalParent)
@@ -201,7 +203,7 @@ local function disableSmartNoClip(connection)
     end
 end
 
--- Status-Updates in der Konsole
+-- Status-Updates in der Konsole mit präzisen Zahlen
 local collectedBonds = 0
 local totalBonds = 0
 local startTime = 0
@@ -215,7 +217,7 @@ local function updateStatus(status, collected, total)
         totalBonds = total
     end
     
-    if collected then
+    if collected and collected >= 0 then
         collectedBonds = collected
     end
     
@@ -234,6 +236,10 @@ local function updateStatus(status, collected, total)
         local seconds = math.floor(remaining % 60)
         
         print("Geschätzte Zeit: " .. minutes .. "m " .. seconds .. "s")
+        
+        -- Ergänze Sammelgeschwindigkeit
+        local bondsPerMinute = collectedBonds / (elapsed / 60)
+        print("Geschwindigkeit: " .. string.format("%.1f", bondsPerMinute) .. " Bonds/min")
     end
 end
 
@@ -314,14 +320,15 @@ local function setupAutoRestart()
         _G.queuedRestart = true
         _G.isInRestart = true
             
-        -- Erstelle den korrekten Aufruf für die Queue
+        -- Erstelle den korrekten Aufruf für die Queue - Mit Turbo-Modus-Erhaltung
         local restartCode = [[
 -- Restart-Status zurücksetzen
 _G.queuedRestart = false;
 _G.isInRestart = false;
 
--- Vorherigen Start merken
+-- Vorherigen Start und Turbo-Modus merken
 _G.hasStartedBefore = true;
+_G.turboMode = true;
 
 -- Lade direkten Link vom GitHub-Repository
 loadstring(game:HttpGet("https://raw.githubusercontent.com/SellMeFish/test25/refs/heads/main/test.lua"))()
@@ -330,39 +337,33 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/SellMeFish/test25/ref
         -- Sichere Ausführung mit mehreren Executor-Optionen
         local queueSuccess = false
         
-        -- Versuche die Funktion direkt
-        if queue_on_tp then
+        -- Multi-Executor-Unterstützung für höchstmögliche Kompatibilität
+        local queueFunctions = {
+            ["syn"] = function() syn.queue_on_teleport(restartCode) end,
+            ["fluxus"] = function() fluxus.queue_on_teleport(restartCode) end,
+            ["krnl"] = function() krnl.queue_on_teleport(restartCode) end,
+            ["Electron"] = function() Electron.queue_on_teleport(restartCode) end,
+            ["queue_on_teleport"] = function() queue_on_teleport(restartCode) end,
+            ["queue_on_tp"] = function() queue_on_tp(restartCode) end
+        }
+        
+        -- Versuche alle bekannten Queue-Methoden
+        for name, func in pairs(queueFunctions) do
+            if queueSuccess then break end
+            
             pcall(function()
-                queue_on_tp(restartCode)
+                -- Prüfe, ob die Funktion oder Variable existiert
+                if name ~= "queue_on_teleport" and name ~= "queue_on_tp" and not _G[name] and not getgenv()[name] then
+                    return
+                end
+                
+                func()
                 queueSuccess = true
-                print("Auto-Restart-Code erfolgreich in die Queue gestellt")
+                print("Auto-Restart via " .. name .. " eingerichtet")
             end)
         end
         
-        -- Fallback für andere Executors
-        if not queueSuccess then
-            -- Versuche verschiedene bekannte Queue-Methoden
-            if syn then
-                pcall(function() 
-                    syn.queue_on_teleport(restartCode)
-                    queueSuccess = true
-                    print("Auto-Restart via syn.queue_on_teleport")
-                end)
-            elseif fluxus then
-                pcall(function() 
-                    fluxus.queue_on_teleport(restartCode)
-                    queueSuccess = true
-                    print("Auto-Restart via fluxus.queue_on_teleport")
-                end)
-            elseif queue_on_teleport then
-                pcall(function() 
-                    queue_on_teleport(restartCode)
-                    queueSuccess = true
-                    print("Auto-Restart via queue_on_teleport")
-                end)
-            end
-        end
-        
+        -- Fallback-Sicherheit für unbekannte Executors
         if not queueSuccess then
             warn("Queue-on-Teleport-Funktion nicht verfügbar oder fehlgeschlagen")
             -- Status zurücksetzen, da Queuing nicht funktioniert
@@ -433,7 +434,7 @@ local function run()
     -- Globalen Zugriff auf ActivatePromise einrichten
     _G.ActivatePromise = ActivatePromise
     
-    -- Bond Aura Setup
+    -- Bond Aura Setup - HOCHLEISTUNGS-VERSION
     local bondAuraConnection = nil
     if settings.enableBondAura then
         -- Funktion zum Einsammeln von Bonds in der Nähe
@@ -446,6 +447,9 @@ local function run()
             local runtime = WorkspaceService:FindFirstChild("RuntimeItems")
             
             if runtime then
+                -- Geordnete Sammlung - zuerst die näheren Bonds
+                local nearbyBonds = {}
+                
                 for _, item in ipairs(runtime:GetChildren()) do
                     if item.Name:match("Bond") then
                         local part = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
@@ -453,28 +457,60 @@ local function run()
                             local distance = (hrpPos - part.Position).Magnitude
                             
                             if distance <= settings.bondAuraRadius then
-                                local success = safeActivateObject(item)
-                                if success then
-                                    collectedBonds = collectedBonds + 1
-                                    updateStatus("Bond automatisch mit Aura gesammelt!", collectedBonds, totalBonds)
-                                end
+                                table.insert(nearbyBonds, {item = item, distance = distance})
                             end
                         end
                     end
                 end
+                
+                -- Sortiere nach Entfernung (nächste zuerst)
+                table.sort(nearbyBonds, function(a, b)
+                    return a.distance < b.distance
+                end)
+                
+                -- Sammle die 3 nächsten Bonds parallel
+                local maxParallelCollections = 3
+                local auraCollected = 0
+                
+                for i = 1, math.min(maxParallelCollections, #nearbyBonds) do
+                    if nearbyBonds[i] then
+                        task.spawn(function()
+                            local success = safeActivateObject(nearbyBonds[i].item)
+                            if success then
+                                collectedBonds = collectedBonds + 1
+                                auraCollected = auraCollected + 1
+                                updateStatus("Bond automatisch mit Aura gesammelt!", collectedBonds, totalBonds)
+                            end
+                        end)
+                    end
+                end
+                
+                -- Wenn Bonds über Aura gesammelt wurden, kleine Verzögerung
+                if auraCollected > 0 then
+                    task.wait(0.05 * auraCollected)
+                end
+                
+                return auraCollected
             end
+            
+            return 0
         end
         
-        -- Bond-Aura regelmäßig aktivieren
+        -- Bond-Aura regelmäßig aktivieren mit Erfolgsüberprüfung
         bondAuraConnection = RunService.Heartbeat:Connect(function()
             local currentTime = tick()
             if not _G.lastBondAuraTime or (currentTime - _G.lastBondAuraTime) >= settings.bondAuraInterval then
                 _G.lastBondAuraTime = currentTime
-                collectNearbyBonds()
+                local collected = collectNearbyBonds()
+                
+                -- Nur melden, wenn tatsächlich Bonds gesammelt wurden
+                if collected > 0 then
+                    updateStatus(collected .. " Bond(s) automatisch mit Aura gesammelt!", collectedBonds, totalBonds)
+                end
             end
         end)
         
-        print("Bond Aura aktiviert - Radius: " .. settings.bondAuraRadius .. " Studs")
+        print("Hochleistungs-Bond-Aura aktiviert - Radius: " .. settings.bondAuraRadius .. " Studs")
     end
     
     -- Cleanup-Funktion für die Bond-Aura
@@ -507,21 +543,75 @@ local function run()
         end
     end
 
-    -- Scan map
+    -- Scan map - OPTIMIERT FÜR AUSFÜHRLICHEREN SCAN (5-8 Sekunden)
     if settings.scanEnabled then
-        updateStatus("Scanne Karte nach Bonds...", 0, 0)
+        updateStatus("Gründlicher Bond-Scan wird gestartet...", 0, 0)
         local scanTarget = CFrame.new(-424.448975, 26.055481, -49040.6562, -1,0,0, 0,1,0, 0,0,-1)
-        for i = 1, settings.scanSteps do
-            local progress = math.floor((i / settings.scanSteps) * 100)
-            updateStatus("Scanne Karte: " .. progress .. "%", 0, 0)
-            hrp.CFrame = hrp.CFrame:Lerp(scanTarget, i/settings.scanSteps)
-            task.wait(0.3)
-            recordBonds()
-            task.wait(0.1)
+        
+        -- Anpassung für gründlicheren Scan
+        local scanSteps = 70 -- Mehr Schritte für gründlicheren Scan
+        local scanDelay = 0.08 -- Reduzierte Verzögerung für schnelleren Scan, aber ausreichend für Stabilität
+        local threadsFinished = 0
+        
+        -- Zusätzliche Sektoren für gründlicheren Scan
+        local scanSectors = {
+            {from = hrp.CFrame, to = scanTarget},
+            {from = hrp.CFrame, to = CFrame.new(-424.448975, 40.055481, -49040.6562, -1,0,0, 0,1,0, 0,0,-1)}, -- Höhere Ebene
+            {from = hrp.CFrame, to = CFrame.new(-400.448975, 26.055481, -49040.6562, -1,0,0, 0,1,0, 0,0,-1)}, -- Leicht versetzt
+        }
+        
+        -- Scan in verschiedenen Sektoren für bessere Abdeckung
+        for sectorIndex, sector in ipairs(scanSectors) do
+            task.spawn(function()
+                updateStatus("Scanne Sektor " .. sectorIndex .. "...", 0, 0)
+                
+                -- Scan innerhalb dieses Sektors
+                for i = 1, scanSteps do
+                    local progress = math.floor((i / scanSteps) * 100)
+                    local lerpFactor = i/scanSteps
+                    
+                    -- Teleportiere sicher zum Scan-Punkt
+                    pcall(function()
+                        hrp.CFrame = sector.from:Lerp(sector.to, lerpFactor)
+                    end)
+                    
+                    -- Warte kurz und sammle Bonds
+                    task.wait(scanDelay)
+                    pcall(recordBonds)
+                end
+                
+                threadsFinished = threadsFinished + 1
+                updateStatus("Sektor " .. sectorIndex .. " abgeschlossen", 0, #bondData)
+            end)
+            
+            -- Warte kurz zwischen dem Start der Sektoren
+            task.wait(0.2)
         end
-        hrp.CFrame = scanTarget
+        
+        -- Warte, bis alle Sektoren gescannt wurden (mit Timeout)
+        local scanStart = tick()
+        while threadsFinished < #scanSectors do
+            task.wait(0.1)
+            if tick() - scanStart > 15 then -- Timeout nach 15 Sekunden
+                break
+            end
+        end
+        
+        -- Letzter Scan am Ziel für vollständige Abdeckung
+        pcall(function()
+            hrp.CFrame = scanTarget
+        end)
         task.wait(0.3)
         recordBonds()
+        
+        -- Zusätzlicher Scan in zentraler Position
+        pcall(function()
+            hrp.CFrame = CFrame.new(-424.448975, 30.055481, -49040.6562, -1,0,0, 0,1,0, 0,0,-1)
+        end)
+        task.wait(0.3)
+        recordBonds()
+        
+        updateStatus("Ausführlicher Scan abgeschlossen!", 0, #bondData)
     else
         updateStatus("Kartenscanning deaktiviert, sammle bekannte Bonds...", 0, 0)
         recordBonds()
@@ -558,187 +648,72 @@ local function run()
     -- Starte Sammlung - Setze Startzeit für ETA
     startTime = tick()
     
-    -- Variable für Timeout/Lag-Handling hinzufügen
-    local consecutiveFailures = 0
-    local maxConsecutiveFailures = 5
-
-    -- Teleport-Loop durch alle Bonds
-    for idx, entry in ipairs(bondData) do
-        -- Reset global stuck detection on every new bond
-        globalStuckTimer = tick()
-        globalStuckPosition = hrp.Position
+    -- Teleport-Loop durch alle Bonds - TURBO-MODUS
+    local collectedInRun = 0
+    local skipped = 0
+    local batchSize = 10 -- Sammle in Batches für Fortschrittsanzeige
+    
+    -- Sortiere Bonds nach Position für optimierte Sammlung
+    table.sort(bondData, function(a, b)
+        return (a.pos - hrp.Position).Magnitude < (b.pos - hrp.Position).Magnitude
+    end)
+    
+    for i = 1, #bondData, batchSize do
+        local endIdx = math.min(i + batchSize - 1, #bondData)
+        updateStatus("Sammle Bonds " .. i .. "-" .. endIdx .. " (" .. collectedInRun .. " bisher)", collectedInRun, #bondData)
         
-        -- Bond-specific timeout timer and attempt counter
-        local bondStartTime = tick()
-        local bondAttempts = 0
-        
-        -- Einfacher Check, ob Charakter existiert
-        if not player.Character then
-            return scriptFinished()
-        end
-        
-        updateStatus("Sammle Bond " .. idx, idx - 1, #bondData)
-        
-        -- Reset consecutive failures count if we had a successful collection previously
-        if consecutiveFailures > 0 and idx > 1 and not bondData[idx-1].item.Parent then
-            consecutiveFailures = 0
-        end
-        
-        -- If we've had too many consecutive failures, try to reset by jumping
-        if consecutiveFailures >= maxConsecutiveFailures then
-            updateStatus("Zu viele Fehlversuche, setze Charakterposition zurück...", idx - 1, #bondData)
+        -- Sammle einen Batch von Bonds
+        for idx = i, endIdx do
+            local entry = bondData[idx]
             
-            -- Dismount from seat if seated
-            if humanoid.SeatPart then
-                humanoid.Jump = true
-                task.wait(0.5)
+            -- Einfacher Check, ob Charakter existiert
+            if not player.Character then
+                return scriptFinished()
             end
             
-            -- Wait a bit longer to ensure we're fully reset
-            task.wait(1)
-            consecutiveFailures = 0
-        end
-        
-        -- Reset Stuck Detection für neuen Bond
-        lastPosition = hrp.Position
-        stuckTimer = tick()
-        stuckCheckEnabled = true
-        
-        -- Teleportiere zum Bond
-        local destCFrame = CFrame.new(entry.pos + Vector3.new(0, settings.teleportHeight, 0))
-        vehicleSeat:PivotTo(destCFrame)
-        RunService.Heartbeat:Wait()
-
-        -- Versuche auf den Sitz zu setzen
-        local t0 = tick()
-        while humanoid.SeatPart ~= vehicleSeat and tick() - t0 < 1 do
+            -- Reset Stuck Detection für neuen Bond
+            lastPosition = hrp.Position
+            stuckTimer = tick()
+            
+            -- Schneller Teleport zum Bond
+            local destCFrame = CFrame.new(entry.pos + Vector3.new(0, settings.teleportHeight, 0))
+            vehicleSeat:PivotTo(destCFrame)
+            task.wait(0.05) -- Reduzierte Wartezeit
+            
+            -- Schnelleres Sitzen
             vehicleSeat:Sit(humanoid)
             task.wait(0.05)
             
-            -- Prüfe, ob wir festsitzen
-            if settings.jumpOnStuck and stuckCheckEnabled and (hrp.Position - lastPosition).Magnitude < 0.1 then
-                if tick() - stuckTimer > settings.stuckTimeout then
-                    print("Charakter feststeckend, versuche zu springen...")
-                    humanoid.Jump = true
-                    task.wait(0.2)
-                    stuckTimer = tick()
-                    hrp.CFrame = hrp.CFrame * CFrame.new(0, 0.5, 0)
-                    task.wait(0.3)
-                    
-                    -- If we've been trying to get onto the seat for too long, force a more drastic measure
-                    if (tick() - t0) > 5 and settings.skipStuckBonds then
-                        -- After 5 seconds of trying to sit, assume something is wrong
-                        updateStatus("Konnte nicht auf VehicleSeat sitzen, versuche Notfall-Teleport...", idx - 1, #bondData)
-                        
-                        -- Try to teleport directly to the bond
-                        pcall(function()
-                            hrp.CFrame = CFrame.new(entry.pos + Vector3.new(0, 3, 0))
-                        end)
-                        
-                        -- Exit the sitting loop early since our position has changed drastically
-                        break
-                    end
-                end
+            -- Warte kurz auf Teleport
+            local t1 = tick()
+            repeat 
+                RunService.Heartbeat:Wait()
+            until atTarget(entry.pos) or (tick() - t1) > 0.7 -- Kürzere Wartezeit
+            
+            -- Spring ab, wenn wir am Ziel sind
+            if humanoid.SeatPart == vehicleSeat then
+                humanoid.Jump = true
+            end
+            
+            -- Funktion zum Prüfen, ob ein Bond sammelbar ist
+            local function isBondCollectible(bondItem)
+                return bondItem and bondItem.Parent and 
+                       (bondItem.PrimaryPart or bondItem:FindFirstChildWhichIsA("BasePart")) and
+                       (hrp.Position - entry.pos).Magnitude < 15
+            end
+            
+            -- Sofortiger Sammelversuch
+            local collectSuccess = false
+            if isBondCollectible(entry.item) then
+                collectSuccess = safeActivateObject(entry.item)
+            end
+            
+            if collectSuccess then
+                collectedInRun = collectedInRun + 1
+                collectedBonds = collectedBonds + 1
+                updateStatus("Bond " .. idx .. " erfolgreich gesammelt!", collectedInRun, #bondData)
             else
-                lastPosition = hrp.Position
-                stuckTimer = tick()
-            end
-        end
-
-        -- Deaktiviere Stuck-Check während wir auf dem Sitz sind
-        stuckCheckEnabled = false
-
-        -- Warte, bis wir das Ziel erreicht haben
-        local t1 = tick()
-        local wasNearTarget = false
-        repeat 
-            RunService.Heartbeat:Wait()
-            
-            -- Prüfe, ob wir Fortschritt zum Ziel machen
-            if settings.jumpOnStuck and (tick() - t1) > 0.8 and not wasNearTarget then
-                if atTarget(entry.pos, 15) then
-                    wasNearTarget = true  -- Wir sind nahe, warte länger
-                else
-                    -- Teleport funktioniert nicht, zurücksetzen
-                    updateStatus("TP funktioniert nicht, setze zurück...", idx - 1, #bondData)
-                    humanoid.Jump = true
-                    task.wait(0.3)
-                    
-                    -- Increment attempt counter
-                    bondAttempts = bondAttempts + 1
-                    
-                    -- If we've tried too many times on this bond, skip it
-                    if bondAttempts >= settings.maxAttemptsPerBond and settings.skipStuckBonds then
-                        updateStatus("Bond " .. idx .. " übersprungen (zu viele Versuche)", idx - 1, #bondData)
-                        break
-                    end
-                    
-                    -- Versuche unterschiedliche Höhen für den Teleport
-                    for offsetY = 4, 7, 1 do
-                        vehicleSeat:PivotTo(CFrame.new(entry.pos + Vector3.new(0, offsetY, 0)))
-                        task.wait(0.1)
-                        
-                        if humanoid.SeatPart ~= vehicleSeat then
-                            vehicleSeat:Sit(humanoid)
-                            task.wait(0.1)
-                        end
-                        
-                        if (hrp.Position - entry.pos).Magnitude < 15 then
-                            break
-                        end
-                    end
-                    
-                    t1 = tick()  -- Reset timer
-                end
-            end
-        until atTarget(entry.pos) or (tick() - t1) > 1.2
-
-        -- Prüfe, ob wir das Ziel erreicht haben
-        local reachedTarget = atTarget(entry.pos)
-        if not reachedTarget and humanoid.SeatPart == vehicleSeat then
-            humanoid.Jump = true
-            task.wait(0.3)
-        end
-        
-        -- Function to check if a bond is collectible
-        local function isBondCollectible(bondItem)
-            -- Wenn das Item nicht mehr existiert, ist es nicht sammelbar
-            if not bondItem or not bondItem.Parent then
-                return false
-            end
-            
-            -- Prüfe, ob der Bond noch richtig mit der Welt verbunden ist
-            local primaryPart = bondItem.PrimaryPart or bondItem:FindFirstChildWhichIsA("BasePart")
-            if not primaryPart then
-                return false
-            end
-            
-            -- Prüfe, ob der Bond zu weit entfernt ist (könnte durch Map-Änderungen abweichen)
-            local distance = (hrp.Position - primaryPart.Position).Magnitude
-            if distance > 100 then
-                return false
-            end
-            
-            return true
-        end
-        
-        -- Versuche Bond zu sammeln, wenn wir nahe genug sind
-        local collectSuccess = false
-        if reachedTarget and isBondCollectible(entry.item) then
-            collectSuccess = safeActivateObject(entry.item)
-        end
-
-        if collectSuccess then
-            collectedBonds = collectedBonds + 1
-            updateStatus("Bond " .. idx .. " gesammelt", idx, #bondData)
-            lastBondCompletionTime = tick()
-            consecutiveFailures = 0
-        else
-            -- Check if we've spent too much time on this bond
-            local bondTime = tick() - bondStartTime
-            if settings.skipStuckBonds and bondTime > settings.maxBondTime then
-                updateStatus("Bond " .. idx .. " übersprungen (Timeout: " .. math.floor(bondTime) .. "s)", idx - 1, #bondData)
-                consecutiveFailures = consecutiveFailures + 1
+                skipped = skipped + 1
                 
                 -- Speichern des fehlgeschlagenen Bonds für späteren Versuch
                 if settings.retryFailedBonds and isBondCollectible(entry.item) then
@@ -749,211 +724,179 @@ local function run()
                         retryCount = 0,
                         lastRetryTime = tick()
                     })
-                    print("Bond " .. idx .. " zur Wiederholungsliste hinzugefügt")
                 end
-            else
-                updateStatus("Bond " .. idx .. " konnte nicht gesammelt werden", idx - 1, #bondData)
-                consecutiveFailures = consecutiveFailures + 1
-                
-                -- Speichern des fehlgeschlagenen Bonds für späteren Versuch
-                if settings.retryFailedBonds and isBondCollectible(entry.item) then
-                    table.insert(_G.failedBonds, {
-                        item = entry.item,
-                        pos = entry.pos,
-                        key = entry.key,
-                        retryCount = 0,
-                        lastRetryTime = tick()
-                    })
-                    print("Bond " .. idx .. " zur Wiederholungsliste hinzugefügt")
-                end
-            end
-        end
-        
-        -- Enhanced global stuck detection
-        if (hrp.Position - globalStuckPosition).Magnitude < 10 then
-            -- Verbesserte Funktion für Pattern-Erkennung
-            local function isStuckInPattern()
-                -- Wir prüfen ob wir uns zwischen denselben Positionen hin und her bewegen
-                if lastPositionHistory and #lastPositionHistory > 6 then
-                    -- Prüfen, ob wir uns zwischen denselben Positionen hin und her bewegen
-                    local posSet = {}
-                    for _, pos in ipairs(lastPositionHistory) do
-                        local posKey = string.format("%.1f,%.1f,%.1f", pos.X, pos.Y, pos.Z)
-                        posSet[posKey] = (posSet[posKey] or 0) + 1
-                        
-                        -- Wenn wir dieselbe Position mehrmals besuchen, stecken wir wahrscheinlich in einem Muster fest
-                        if posSet[posKey] >= 3 then
-                            return true
-                        end
-                    end
-                end
-                return false
             end
             
-            -- Wenn wir in ein Muster verstrickt sind oder keinen Fortschritt machen
-            -- Versuche den Charakter zu befreien
-            if isStuckInPattern() then
-                updateStatus("Charakter in Bewegungsmuster gefangen, befreie...", idx, #bondData)
-                
-                -- Sicherstellen, dass wir vom VehicleSeat aussteigen
-                if humanoid.SeatPart then
-                    humanoid.Jump = true
-                    task.wait(0.5)
-                end
-                
-                -- Versuche, den Charakter mit zufälligen Bewegungen zu befreien
-                for i = 1, 3 do
-                    -- Zufällige Richtung
-                    local angle = math.random() * math.pi * 2
-                    local direction = Vector3.new(math.cos(angle), 0.5, math.sin(angle)) * (5 + math.random() * 3)
-                    
-                    pcall(function()
-                        hrp.CFrame = CFrame.new(hrp.Position + direction)
-                    end)
-                    
-                    humanoid.Jump = true
-                    task.wait(0.3)
-                end
-                
-                -- Historie zurücksetzen nach Befreiungsversuch
-                lastPositionHistory = {}
-            end
-        else
-            globalStuckPosition = hrp.Position
+            -- Minimale Pause vor nächstem Bond
+            task.wait(0.1)
         end
         
-        -- Kurze Pause vor nächstem Bond
-        task.wait(0.5)
+        -- Batch-Update
+        updateStatus("Batch abgeschlossen: " .. collectedInRun .. " gesammelt, " .. skipped .. " übersprungen", collectedInRun, #bondData)
+        
+        -- Kurze Pause zwischen Batches für Stabilitätserhöhung
+        task.wait(0.3)
     end
 
-    -- Fehlgeschlagene Bonds erneut versuchen, wenn aktiviert
+    -- Fehlgeschlagene Bonds erneut versuchen - BESCHLEUNIGT
     if settings.retryFailedBonds and #_G.failedBonds > 0 then
-        updateStatus("Versuche fehlgeschlagene Bonds erneut zu sammeln...", collectedBonds, totalBonds)
+        updateStatus("Schnell-Verarbeitung fehlgeschlagener Bonds (" .. #_G.failedBonds .. ")...", collectedBonds, totalBonds)
         
         local failedBondsCount = #_G.failedBonds
         local retrySuccessCount = 0
         
-        -- Neue Funktion für No-Clip-Teleport
-        local function teleportWithNoClip(pos)
-            if settings.useNoClipForRetry then
-                -- Smart No-Clip temporär aktivieren
-                local noClipConnection = nil
-                
-                if settings.smartNoClip then
-                    noClipConnection = enableSmartNoClip()
-                else
-                    -- Klassisches No-Clip aktivieren (alle Kollisionen deaktivieren)
-                    pcall(function()
-                        for _, part in pairs(player.Character:GetDescendants()) do
-                            if part:IsA("BasePart") then
-                                part.CanCollide = false
-                            end
-                        end
-                    end)
-                end
-                
-                -- Direkt zum Bond teleportieren
-                pcall(function()
-                    hrp.CFrame = CFrame.new(pos)
-                end)
-                
-                task.wait(0.3)
-                
-                -- No-Clip wieder deaktivieren
-                if settings.smartNoClip then
-                    disableSmartNoClip(noClipConnection)
-                else
-                    pcall(function()
-                        for _, part in pairs(player.Character:GetDescendants()) do
-                            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                                part.CanCollide = true
-                            end
-                        end
-                    end)
-                end
-            else
-                -- Herkömmlicher Teleport mit dem Fahrzeug
-                local destCFrame = CFrame.new(pos + Vector3.new(0, 2, 0))
-                vehicleSeat:PivotTo(destCFrame)
-                RunService.Heartbeat:Wait()
-                
-                local t0 = tick()
-                while humanoid.SeatPart ~= vehicleSeat and tick() - t0 < 1 do
-                    vehicleSeat:Sit(humanoid)
-                    task.wait(0.05)
-                end
-                
-                task.wait(0.5)
-                
-                if humanoid.SeatPart == vehicleSeat then
-                    humanoid.Jump = true
-                    task.wait(0.2)
-                end
-            end
-        end
-        
-        -- Versuche jeden fehlgeschlagenen Bond erneut
-        for i = #_G.failedBonds, 1, -1 do
-            local failedBond = _G.failedBonds[i]
-            
-            -- Prüfen, ob der Bond noch existiert und sammelbar ist
-            if not failedBond.item or not failedBond.item.Parent then
-                table.remove(_G.failedBonds, i)
-                print("Fehlgeschlagener Bond existiert nicht mehr, entferne von der Liste")
-            else
-                -- Erhöhe den Retry-Counter
-                failedBond.retryCount = failedBond.retryCount + 1
-                
-                -- Überprüfen, ob maximale Anzahl an Versuchen erreicht ist
-                if failedBond.retryCount > settings.maxFailedRetries then
-                    updateStatus("Maximale Wiederholungen für Bond überschritten, wird übersprungen", collectedBonds, totalBonds)
-                    table.remove(_G.failedBonds, i)
-                else
-                    updateStatus("Versuche fehlgeschlagenen Bond " .. i .. "/" .. failedBondsCount, collectedBonds, totalBonds)
-                    
-                    -- Teleportiere direkt zum Bond mit No-Clip
-                    teleportWithNoClip(failedBond.pos)
-                    
-                    -- Versuch, den Bond zu sammeln
-                    local collectSuccess = safeActivateObject(failedBond.item)
-                    if collectSuccess then
-                        updateStatus("Fehlgeschlagener Bond erfolgreich gesammelt!", collectedBonds + 1, totalBonds)
-                        collectedBonds = collectedBonds + 1
-                        retrySuccessCount = retrySuccessCount + 1
-                        table.remove(_G.failedBonds, i)
-                    else
-                        updateStatus("Erneuter Versuch fehlgeschlagen", collectedBonds, totalBonds)
-                        -- Aktualisiere die letzte Versuchszeit
-                        failedBond.lastRetryTime = tick()
+        -- Aktiviere NoClip für alle Retry-Versuche auf einmal
+        local noClipConnection = nil
+        if settings.useNoClipForRetry and settings.smartNoClip then
+            noClipConnection = enableSmartNoClip()
+        elseif settings.useNoClipForRetry then
+            -- Klassisches No-Clip aktivieren
+            pcall(function()
+                for _, part in pairs(player.Character:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
                     end
-                    
-                    -- Kurze Pause zwischen den Versuchen
-                    task.wait(settings.failedBondRetryDelay)
                 end
+            end)
+        end
+        
+        -- Sortiere fehlgeschlagene Bonds nach Entfernung
+        table.sort(_G.failedBonds, function(a, b)
+            return (a.pos - hrp.Position).Magnitude < (b.pos - hrp.Position).Magnitude
+        end)
+        
+        -- Parallele Verarbeitung von fehlgeschlagenen Bonds
+        local processingThreads = 0
+        local maxParallelThreads = 3
+        local threadsFinished = 0
+        
+        -- Threadfunktion für Retry
+        local function processFailedBond(index)
+            processingThreads = processingThreads + 1
+            local failedBond = _G.failedBonds[index]
+            
+            -- Teleportiere direkt zum Bond
+            pcall(function() 
+                hrp.CFrame = CFrame.new(failedBond.pos)
+            end)
+            task.wait(0.1)
+            
+            -- Versuch, den Bond zu sammeln
+            local collectSuccess = safeActivateObject(failedBond.item)
+            if collectSuccess then
+                collectedBonds = collectedBonds + 1
+                retrySuccessCount = retrySuccessCount + 1
+                updateStatus("Fehlgeschlagener Bond " .. index .. " erfolgreich gesammelt!", collectedBonds, totalBonds)
+                
+                -- Entferne erfolgreichen Bond aus der Liste (Markierung für später)
+                failedBond.success = true
+            else
+                -- Verbleibende fehlgeschlagene Bonds maximal einmal wiederholen
+                failedBond.retryCount = (failedBond.retryCount or 0) + 1
+                failedBond.lastRetryTime = tick()
+            end
+            
+            processingThreads = processingThreads - 1
+            threadsFinished = threadsFinished + 1
+        end
+        
+        -- Starte Threads für parallele Verarbeitung
+        for i = 1, #_G.failedBonds do
+            -- Warte, wenn zu viele Threads aktiv sind
+            while processingThreads >= maxParallelThreads do
+                task.wait(0.05)
+            end
+            
+            -- Starte Thread für diesen Bond
+            task.spawn(function()
+                processFailedBond(i)
+            end)
+            
+            task.wait(0.1) -- Kurze Verzögerung zwischen Thread-Starts
+        end
+        
+        -- Warte auf Abschluss aller Threads
+        while threadsFinished < #_G.failedBonds do
+            task.wait(0.1)
+        end
+        
+        -- Entferne erfolgreiche Bonds aus der Liste
+        for i = #_G.failedBonds, 1, -1 do
+            if _G.failedBonds[i].success or 
+               _G.failedBonds[i].retryCount > settings.maxFailedRetries or
+               not _G.failedBonds[i].item or
+               not _G.failedBonds[i].item.Parent then
+                table.remove(_G.failedBonds, i)
             end
         end
         
-        updateStatus("Wiederholungsversuch abgeschlossen. " .. retrySuccessCount .. " von " .. failedBondsCount .. " erfolgreich gesammelt.", collectedBonds, totalBonds)
+        -- Deaktiviere NoClip
+        if settings.useNoClipForRetry and settings.smartNoClip and noClipConnection then
+            disableSmartNoClip(noClipConnection)
+        elseif settings.useNoClipForRetry then
+            pcall(function()
+                for _, part in pairs(player.Character:GetDescendants()) do
+                    if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                        part.CanCollide = true
+                    end
+                end
+            end)
+        end
+        
+        updateStatus("Schnell-Wiederholung abgeschlossen. " .. retrySuccessCount .. " von " .. failedBondsCount .. " gesammelt.", collectedBonds, totalBonds)
     end
 
-    -- Normale Beendigung: Humanoid töten & finalisieren
+    -- Normale Beendigung: Optimierte Finalisierung für Turbo-Modus
+    local totalRun = tick() - startTime
+    local minutes = math.floor(totalRun / 60)
+    local seconds = math.floor(totalRun % 60)
+    
     updateStatus("Alle Bonds gesammelt!", collectedBonds, totalBonds)
+    print("===== SAMMLUNG ABGESCHLOSSEN =====")
+    print("Gesammelte Bonds: " .. collectedBonds)
+    print("Gesamtzeit: " .. minutes .. "m " .. seconds .. "s")
+    print("Durchschnitt: " .. string.format("%.2f", collectedBonds / (totalRun / 60)) .. " Bonds pro Minute")
+    print("==============================")
     
     -- Bond Aura aufräumen
     cleanupBondAura()
     
+    -- Schneller Selbsttod-Mechanismus für sofortigen Neustart
     pcall(function()
         local charHum = player.Character and player.Character:FindFirstChild("Humanoid")
         if charHum then
+            -- Bereite Auto-Restart VOR dem Tod vor für schnelleren Übergang
+            if settings.autoRestart then
+                task.spawn(function()
+                    setupAutoRestart()
+                    print("Turbo-Auto-Restart vorbereitet")
+                end)
+            end
+            
+            -- Setze Position auf Spawn für schnelleren Neustart der nächsten Runde
+            pcall(function()
+                hrp.CFrame = CFrame.new(0, 100, 0)
+            end)
+            
+            -- Anschließend Selbsttod
+            task.wait(0.1)
             charHum:TakeDamage(999999)
         end
     end)
 
+    print("=== Turbo-Sammlung abgeschlossen! ===")
     return scriptFinished()
 end
 
 -- Sofort starten
-print("EasyBond Collector gestartet")
+print("===== TURBO-MODE - EasyBond Ultra Fast Collector =====")
+print("- Paralleles Scanning aktiviert")
+print("- Beschleunigte Teleport-Routine")
+print("- Multi-Bond-Sammlung mit Aura")
+print("- Optimierte Executor-Kompatibilität")
+print("- Drücke F9 für Fortschrittsinformationen")
+print("=====================================================")
+
 task.spawn(function()
     local success, errorMsg = pcall(run)
     if not success then
