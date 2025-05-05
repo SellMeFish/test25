@@ -37,10 +37,15 @@ local player = Players.LocalPlayer
 local remotesRoot = ReplicatedStorage:WaitForChild("Remotes")
 local EndDecisionRemote = remotesRoot:WaitForChild("EndDecision")
 
--- Teleport-Queue (Synapse / Fluxus / etc.)
-local queue_on_tp = (syn and syn.queue_on_teleport)
-    or queue_on_teleport
+-- Teleport-Queue (Synapse / Fluxus / KRNL / Electron / etc.)
+local queue_on_tp = (syn and syn.queue_on_teleport) 
+    or queue_on_teleport 
     or (fluxus and fluxus.queue_on_teleport)
+    or (krnl and krnl.queue_on_teleport)
+    or (Electron and Electron.queue_on_teleport)
+
+-- Vorwärtsdeklarationen für Funktionen
+local setupAutoRestart
 
 -- Anti-AFK
 player.Idled:Connect(function()
@@ -295,7 +300,85 @@ local function setupDeathDetection()
     end)
 end
 
--- Vereinfachte Beendigungsfunktion
+-- Verbesserte Funktion für Teleport-Queue mit zusätzlicher Fehlerbehandlung
+local function setupAutoRestart()
+    -- Sichere Ausführung mit Fehlerbehandlung
+    local success, errorMsg = pcall(function()
+        -- Verhindern, dass die Queue mehrfach eingerichtet wird
+        if _G.queuedRestart then 
+            print("Auto-Restart ist bereits in der Queue - überspringe")
+            return 
+        end
+        
+        -- Queuing-Status auf true setzen
+        _G.queuedRestart = true
+        _G.isInRestart = true
+            
+        -- Erstelle den korrekten Aufruf für die Queue
+        local restartCode = [[
+-- Restart-Status zurücksetzen
+_G.queuedRestart = false;
+_G.isInRestart = false;
+
+-- Vorherigen Start merken
+_G.hasStartedBefore = true;
+
+-- Lade direkten Link vom GitHub-Repository
+loadstring(game:HttpGet("https://raw.githubusercontent.com/SellMeFish/test25/refs/heads/main/test.lua"))()
+]]
+
+        -- Sichere Ausführung mit mehreren Executor-Optionen
+        local queueSuccess = false
+        
+        -- Versuche die Funktion direkt
+        if queue_on_tp then
+            pcall(function()
+                queue_on_tp(restartCode)
+                queueSuccess = true
+                print("Auto-Restart-Code erfolgreich in die Queue gestellt")
+            end)
+        end
+        
+        -- Fallback für andere Executors
+        if not queueSuccess then
+            -- Versuche verschiedene bekannte Queue-Methoden
+            if syn then
+                pcall(function() 
+                    syn.queue_on_teleport(restartCode)
+                    queueSuccess = true
+                    print("Auto-Restart via syn.queue_on_teleport")
+                end)
+            elseif fluxus then
+                pcall(function() 
+                    fluxus.queue_on_teleport(restartCode)
+                    queueSuccess = true
+                    print("Auto-Restart via fluxus.queue_on_teleport")
+                end)
+            elseif queue_on_teleport then
+                pcall(function() 
+                    queue_on_teleport(restartCode)
+                    queueSuccess = true
+                    print("Auto-Restart via queue_on_teleport")
+                end)
+            end
+        end
+        
+        if not queueSuccess then
+            warn("Queue-on-Teleport-Funktion nicht verfügbar oder fehlgeschlagen")
+            -- Status zurücksetzen, da Queuing nicht funktioniert
+            _G.queuedRestart = false
+        end
+    end)
+    
+    -- Fehlerbehandlung für den Fall von Problemen mit der Funktion
+    if not success then
+        warn("Fehler beim Einrichten des Auto-Restarts: " .. tostring(errorMsg))
+        -- Statussicherung bei Fehler
+        _G.queuedRestart = false
+        _G.isInRestart = false
+    end
+end
+
 local function scriptFinished()
     if finished then return end
     finished = true
@@ -327,54 +410,6 @@ local function scriptFinished()
             setupAutoRestart()
             print("Auto-Restart vorbereitet")
         end)
-    end
-end
-
--- Füge die setupAutoRestart-Funktion nach der scriptFinished-Funktion hinzu:
--- Verbesserte Funktion für Teleport-Queue mit zusätzlicher Fehlerbehandlung
-local function setupAutoRestart()
-    -- Sichere Ausführung mit Fehlerbehandlung
-    local success, errorMsg = pcall(function()
-        -- Verhindern, dass die Queue mehrfach eingerichtet wird
-        if _G.queuedRestart then 
-            print("Auto-Restart ist bereits in der Queue - überspringe")
-            return 
-        end
-        
-        -- Queuing-Status auf true setzen
-        _G.queuedRestart = true
-        _G.isInRestart = true
-            
-        -- Erstelle den korrekten Aufruf für die Queue
-        local restartCode = [[
-        -- Restart-Status zurücksetzen
-        _G.queuedRestart = false;
-        _G.isInRestart = false;
-        
-        -- Vorherigen Start merken
-        _G.hasStartedBefore = true;
-        
-        -- Skript über HttpGet neu laden
-        loadstring(game:HttpGet("https://api.luarmor.net/files/v3/loaders/869d818021af0445799bf14959327df4.lua"))()
-        ]]
-
-        -- Verwende die korrekte Queue-Funktion
-        if queue_on_tp then
-            queue_on_tp(restartCode)
-            print("Auto-Restart-Code erfolgreich in die Queue gestellt")
-        else
-            warn("Queue-on-Teleport-Funktion nicht verfügbar")
-            -- Status zurücksetzen, da Queuing nicht funktioniert
-            _G.queuedRestart = false
-        end
-    end)
-    
-    -- Fehlerbehandlung für den Fall von Problemen mit der Funktion
-    if not success then
-        warn("Fehler beim Einrichten des Auto-Restarts: " .. tostring(errorMsg))
-        -- Statussicherung bei Fehler
-        _G.queuedRestart = false
-        _G.isInRestart = false
     end
 end
 
